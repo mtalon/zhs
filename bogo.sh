@@ -4,7 +4,7 @@
 header="BOGO v1.1\nProperty of Michael Talon\n"
 
 # Make sure these are hardcoded to YOUR home directory
-# If you run this as root, it will treat ~ as /home/root
+# If you run this as root, it will treat ~ as /root
 
 base=/home/penchant81718/zpd  # Bogo's working directory
 puppets=$base/puppets.bogo    # Location of the puppets list
@@ -63,11 +63,11 @@ Error(){
 	case "$1" in
 		"warn") echo "WARNING: $2";;
 		"fatal") echo "FATAL: $2"
-						 echo -ne "\nABORTING\n"
-						 exit 1;;
+			 echo -ne "\nABORTING\n"
+			 exit 1;;
 		"note") echo "NOTE: $2";;
 		*) echo -ne "\nBUG: Errorception \n1: $1 \n2: $2\n"
-			 exit 69;;
+		   exit 69;;
 	esac
 }
 
@@ -125,7 +125,7 @@ Usage(){
 	echo "Usage: bogo [ACTION]"
 	echo "Where ACTION is either hit or sync-puppets"
 	echo ""
-	echo "Last edits were made March 28th"
+	echo "Last edits were made July 25th"
 	echo "This script is still in development and should be considered"
 	echo "DANGEROUS. Use at your own risk"                                        
 	echo "-------------------------------------------------------------"
