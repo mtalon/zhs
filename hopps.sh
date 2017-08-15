@@ -1,5 +1,5 @@
 #!/bin/bash
-header="HOPPS v1.0\nProperty of Michael Talon\n"
+header="HOPPS v1.1\nProperty of Michael Talon\n"
 config=/home/mtalon/zpd/hopps.cfg		
 
 Startup(){
@@ -71,6 +71,7 @@ ConfigCheck(){
 		cutoff_date=100
 	fi
 	
+	# Temp fix - we can't be deleting user directories
 	if [[ $delete_if_inactive == "yes" ]] && [[ $scope == "/home" ]]; then
 		Error note "Ignoring request to delete inactive users from home directory"
 		delete_if_inactive=no
@@ -132,20 +133,6 @@ CheckIfActiveUser(){
 		clean_user[$x]=$1
 		((x++))
 	fi
-}
-
-KeywordSearch(){
-	# Does something.
-	
-	for line in $keywords; do
-		FindInFile $1 $2
-	done
-}
-
-FindInFile(){
-	# Does something
-	
-	grep --ignore-case $1 $2 >> _hopps.tmp
 }
 
 CountWilde(){
@@ -220,7 +207,10 @@ NarrowScope(){
 SearchKeywords(){
 	echo -ne "\n---> Searching for keywords...\n"
 	if [[ -e $dir_hopps/hits.txt ]]; then
-		rm $dir_hopps/hits.txt
+		if [[ -e $dir_hopps/hits.txt.old ]]; then
+			Error note "Moving previous hits.txt to hits.txt.old"
+		fi
+		mv -f $dir_hopps/hits.txt $dir_hopps/hits.txt.old
 	fi
 	touch $dir_hopps/hits.txt
 	h=0
@@ -280,28 +270,32 @@ FindWilde(){
 }
 
 GrabMail(){
-	echo -ne "\n---> Consolidating mail...\n"
-	for i in ${clean_user[@]}; do
-		name=${i##$scope/}
-		echo -e "$name\\t--> $dir_hopps/usermail/$name"
-		if [[ ! -e $dir_hopps/usermail ]]; then
-			mkdir $dir_hopps/usermail
-		fi
-		if [[ ! -e $dir_hopps/usermail/$name ]]; then
-			mkdir $dir_hopps/usermail/$name
-		fi
-		if [[ -e $i/mail/Sent ]]; then
-			cp -f $i/mail/Sent $dir_hopps/usermail/$name/
-		fi
-		if [[ -e $i/mail/Drafts ]]; then
-			cp -f $i/mail/Drafts $dir_hopps/usermail/$name/
-		fi
-		if [[ -e $i/mail/Trash ]]; then
-			cp -f $i/mail/Trash $dir_hopps/usermail/$name/
-		fi
-		cp -f /var/spool/mail/$name $dir_hopps/usermail/$name/Recieved
-	done
-	chmod 755 -R $dir_hopps/usermail
+	if [[ -z  $clean_user ]]; then
+		echo "There are no valid users to grab mail from :("
+	else
+		echo -ne "\n---> Consolidating mail...\n"
+		for i in ${clean_user[@]}; do
+			name=${i##$scope/}
+			echo -e "$name\\t--> $dir_hopps/usermail/$name"
+			if [[ ! -e $dir_hopps/usermail ]]; then
+				mkdir $dir_hopps/usermail
+			fi
+			if [[ ! -e $dir_hopps/usermail/$name ]]; then
+				mkdir $dir_hopps/usermail/$name
+			fi
+			if [[ -e $i/mail/Sent ]]; then
+				cp -f $i/mail/Sent $dir_hopps/usermail/$name/
+			fi
+			if [[ -e $i/mail/Drafts ]]; then
+				cp -f $i/mail/Drafts $dir_hopps/usermail/$name/
+			fi
+			if [[ -e $i/mail/Trash ]]; then
+				cp -f $i/mail/Trash $dir_hopps/usermail/$name/
+			fi
+			cp -f /var/spool/mail/$name $dir_hopps/usermail/$name/Recieved
+		done
+		chmod 755 -R $dir_hopps/usermail
+	fi
 }
 
 clear
