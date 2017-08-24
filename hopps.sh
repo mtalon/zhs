@@ -1,6 +1,7 @@
 #!/bin/bash
-header="HOPPS v1.1\nProperty of Michael Talon\n"
+header="HOPPS v1.2\nProperty of Michael Talon\n"
 config=/home/mtalon/zpd/hopps.cfg		
+tabs=5
 
 Startup(){
 	# Check if root, remake tmp file
@@ -92,7 +93,7 @@ ConfigCheck(){
 CountFiles(){
 	# Count the number of files in a specfied directory
 	
-	num_files=$(ls -l $1 | grep -v ^l | wc -l)
+	num_files=$(ls -ld $1/* | wc -l)
 }
 
 CheckIfValidUser(){
@@ -139,28 +140,61 @@ CountWilde(){
 	# Look for evidence of a wilde infilration
 	# "Active" users have wilde's crontask running
 	# Save the list into a file
-	
-	present=0
-	active=0
+	if [[ -e $wilde_payload ]]; then
+		local wilde_sig=$(cat $wilde_payload)
+	else
+		Error note "Can't find wilde's payload at $wilde_payload"
+		echo "      I'll search for him anyway, but results may not be accurate"
+		echo ""
+		local wilde_sig="# Its called a hustle, sweetheart"
+	fi	
+	local present=0
+	local active=0
+	local broken=0
+	local failed=0
 	if [[ -e $dir_hopps/InfectedUsers.hopps ]]; then
 		rm -f $dir_hopps/InfectedUsers.hopps
-	else
-		touch $dir_hopps/InfectedUsers.hopps
 	fi
 	
 	for i in ${clean_user[@]}; do
-		if [[ -e $i/._/.wilde ]]; then
-			echo -ne "Wilde present:\\t $i\n"
-			echo -ne "$i\\tPresent\n" >> $dir_hopps/InfectedUsers.hopps
-			((present++))
+		local x=0
+		name=${i##$scope/}
+		for f in $(find $i -type f); do
 			ct=$(crontab -u ${i##$scope/} -l 2>&1)
-			if [[ $ct == *"~/._/.wilde"* ]]; then
-				echo -ne "WILDE ACTIVE:\\t $i\n"
-				echo -ne "$i\\tACTIVE\n" >> $dir_hopps/InfectedUsers.hopps
-				((active++))
+			if [[ ! -d $f ]]; then
+				if [[ $(cat $f) == *"$wilde_sig"* ]]; then
+					x=1
+					((present++))
+					if [[ "$ct" == *"wilde"* ]]; then
+						echo "PAYLOAD PRESENT AND ACTIVE:      $i"
+						((active++))
+					else
+						echo "Payload present:                 $i"
+					fi
+				fi
+				if [[ "$ct" == *"wilde"* ]]; then
+					if [[ $x == 0 ]]; then
+						echo "PAYLOAD MISSING - CRONJOB ACTIVE: $i"
+						((broken++))
+					fi
+				fi
+				if [[ $f =~ *".f"* ]]; then
+					echo "PAYLOAD FAILED TO EXECUTE:        $i"
+					((failed++))
+				fi
 			fi
-		fi
+		done
+		#ct=
 	done
+	if [[ $present == 0 ]]; then
+		echo "Wilde not found in $scope"
+	else
+		echo -ne "\n   ------- [ WILDE STATISTICS] ------- \n\n"
+		echo "      Active Infections:   $active of $present"
+		echo "      Missing Payloads:    $broken of $present"
+		echo "      Execution failures:  $failed of $present"
+		echo -ne "\n   -----------------------------------   \n"
+	fi
 }
 
 NarrowScope(){
@@ -263,10 +297,8 @@ SearchKeywords(){
 }
 
 FindWilde(){
-	echo -ne "\n---> Looking for wilde...\n"
+	echo -ne "\n---> Looking for wilde...\n\n"
 	CountWilde $scope
-	echo -ne "\nWilde is present in $present users\n"
-	echo "Wilde is active in $active of those users"
 }
 
 GrabMail(){
@@ -294,8 +326,18 @@ GrabMail(){
 			fi
 			cp -f /var/spool/mail/$name $dir_hopps/usermail/$name/Recieved
 		done
-		chmod 755 -R $dir_hopps/usermail
+		chmod 755 -R $dir_hopps
 	fi
+}
+
+LocalExec(){
+	# Still need to do more, but this is a start
+	
+	if [[ -e /usr/bin/$1 ]] || [[ -e /bin/$1 ]]; then
+		return 1
+	fi
+	
+	return 0
 }
 
 clear
@@ -303,10 +345,15 @@ echo -ne "$header\n"
 Startup
 source $config
 ConfigCheck
+
 if [[ $r != 1 ]]; then
 	Error fatal "hopps.cfg contains errors!"
 else
 	echo "Configuation is ok"
+fi
+if [[ -e $base/tasks.hopps ]]
+		echo "Sourcing $base/tasks.hopps"
+		source $base/tasks.hopps
 fi
 CountFiles $scope
 if [[ $num_files -le 0 ]]; then
@@ -322,10 +369,15 @@ else
 	rm -f _hopps.tmp
 	for i in ${tasks[@]}; do
 		# **** UBER DANGEROUS ****
-		echo -ne "\nExecute $i? (Y/N) "
-		read aa
-		if [[ $aa == "Y" ]] || [[ $aa == "y" ]]; then
-			$i
+		LocalExec $i
+		if [[ $? != 0 ]]; then
+			echo "Skipping foreign executable \"$i\"... tsk tsk"
+		else
+			echo -ne "\nExecute $i? (Y/N) "
+			read aa
+			if [[ $aa == "Y" ]] || [[ $aa == "y" ]]; then
+				$i
+			fi
 		fi
 	done
 	rm -f _hopps.tmp
